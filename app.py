@@ -12,7 +12,7 @@ if not GEMINI_API_KEY:
     st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel("gemini-pro")
+model = genai.GenerativeModel("gemini-2.5-flash")
 
 
 # ----------------------------------------------------
@@ -152,3 +152,4 @@ st.markdown(
     """,
     unsafe_allow_html=True
 )
+
