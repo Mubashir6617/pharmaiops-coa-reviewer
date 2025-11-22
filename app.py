@@ -1,124 +1,154 @@
-import os
+import streamlit as st
 import google.generativeai as genai
-import gradio as gr
+import os
 
-
-# ============================
-# 1. Gemini API Configuration
-# ============================
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY") 
+# ----------------------------------------------------
+# 1. Load Gemini API key from Streamlit Secrets
+# ----------------------------------------------------
+GEMINI_API_KEY = st.secrets.get("GEMINI_API_KEY")
 
 if not GEMINI_API_KEY:
-    raise RuntimeError("Please set GEMINI_API_KEY in your HF Secrets.")
+    st.error("🚨 GEMINI_API_KEY is missing. Please add it in Streamlit → Settings → Secrets.")
+    st.stop()
 
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel("gemini-pro")
 
 
-# ============================
-# 2. Dummy User Accounts
-# ============================
+# ----------------------------------------------------
+# 2. Dummy Login Accounts
+# ----------------------------------------------------
 USER_ACCOUNTS = {
     "user01": "pass01",
     "user02": "pass02",
     "user03": "pass03",
     "user04": "pass04",
-    "user05": "pass05"
+    "user05": "pass05",
 }
 
 
-def authenticate(user_id, password):
-    """Check if ID & password match."""
-    if user_id in USER_ACCOUNTS and USER_ACCOUNTS[user_id] == password:
-        return True, "Login successful!"
-    return False, "Invalid ID or Password."
+def check_login(uid, pw):
+    """Validate the Customer ID + Password."""
+    return uid in USER_ACCOUNTS and USER_ACCOUNTS[uid] == pw
 
 
-# ============================
-# 3. COA Comparison Function
-# ============================
-def generate_intelligent_comparison(controlled_text: str, supplier_text: str) -> str:
+# ----------------------------------------------------
+# 3. COA Comparison Logic
+# ----------------------------------------------------
+def generate_comparison(controlled, supplier):
     prompt = f"""
 Controlled Specifications:
-{controlled_text}
+{controlled}
 
 Supplier Specifications:
-{supplier_text}
+{supplier}
 
-Perform a detailed QC-style comparison between these specifications.
-Highlight mismatches, storage, particle size, bulk/tapped density etc.
+Perform a detailed QC-style COA comparison including:
+- Mismatches in limits
+- Bulk/Tapped density
+- Storage conditions
+- Particle size
+- Critical specification gaps
+- Summary + recommendations
 """
 
     try:
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
-        return f"Error: {e}"
+        return f"❌ Error: {e}"
 
 
-def compare_specs(controlled_text, supplier_text):
-    if not controlled_text.strip():
-        return "Please enter controlled specifications."
-    if not supplier_text.strip():
-        return "Please enter supplier specifications."
-    return generate_intelligent_comparison(controlled_text, supplier_text)
+# ----------------------------------------------------
+# 4. Streamlit Page Layout
+# ----------------------------------------------------
+st.set_page_config(
+    page_title="PharmAiOps – COA Reviewer",
+    layout="wide"
+)
 
+# Header
+st.markdown(
+    """
+    <h1 style="text-align:center; color:#4A90E2;">
+        PharmAiOps – COA Reviewer
+    </h1>
+    <p style="text-align:center; font-size:18px;">
+        AI-powered specification comparison for pharmaceutical QC professionals.
+    </p>
+    """,
+    unsafe_allow_html=True
+)
 
-# ============================
-# 4. Gradio UI (With Login)
-# ============================
-with gr.Blocks() as demo:
+# ----------------------------------------------------
+# 5. Login Section
+# ----------------------------------------------------
+if "logged_in" not in st.session_state:
+    st.session_state.logged_in = False
 
-    gr.Markdown("# 🔐 PharmAiOps – COA Reviewer")
-    gr.Markdown("### Login with Customer ID & Password")
+if not st.session_state.logged_in:
 
-    # LOGIN UI
-    user_id = gr.Textbox(label="Customer ID", placeholder="Enter your ID")
-    password = gr.Textbox(label="Password", type="password", placeholder="Enter your password")
-    login_btn = gr.Button("Login")
-    login_status = gr.Markdown()
+    st.markdown("### 🔐 Login to access the tool")
 
-    # MAIN TOOL UI (hidden by default)
-    controlled_box = gr.Textbox(label="Controlled Specs", lines=10, visible=False)
-    supplier_box = gr.Textbox(label="Supplier Specs", lines=10, visible=False)
-    analyze_btn = gr.Button("Analyze COA", visible=False)
-    output = gr.Markdown(visible=False)
+    col1, col2 = st.columns(2)
 
+    with col1:
+        uid = st.text_input("Customer ID")
 
-    # LOGIN LOGIC
-    def login_action(uid, pw):
-        ok, msg = authenticate(uid, pw)
-        if ok:
-            return (
-                gr.update(visible=False),   # Hide ID field
-                gr.update(visible=False),   # Hide PW field
-                gr.update(value="### ✔️ Login Successful! Welcome.", visible=True),
-                gr.update(visible=True),    # Controlled box visible
-                gr.update(visible=True),    # Supplier box visible
-                gr.update(visible=True),    # Analyze button
-                gr.update(visible=True),    # Output area
-            )
+    with col2:
+        pw = st.text_input("Password", type="password")
+
+    if st.button("Login"):
+        if check_login(uid, pw):
+            st.session_state.logged_in = True
+            st.success("✔ Login successful!")
+            st.experimental_rerun()
         else:
-            return (
-                gr.update(visible=True),
-                gr.update(visible=True),
-                gr.update(value="❌ Invalid login. Try again.", visible=True),
-                gr.update(visible=False),
-                gr.update(visible=False),
-                gr.update(visible=False),
-                gr.update(visible=False),
-            )
+            st.error("❌ Invalid ID or password. Try again.")
 
-    login_btn.click(
-        login_action,
-        inputs=[user_id, password],
-        outputs=[user_id, password, login_status, controlled_box, supplier_box, analyze_btn, output]
+    st.stop()
+
+
+# ----------------------------------------------------
+# 6. Main Application UI
+# ----------------------------------------------------
+st.success("✔ You are logged in.")
+
+# Two Text Areas
+col1, col2 = st.columns(2)
+
+with col1:
+    controlled_specs = st.text_area(
+        "Controlled Specifications",
+        placeholder="LOD: NMT 2%...\nAssay: 98–102%...\nDissolution: NLT 80%...",
+        height=250
     )
 
+with col2:
+    supplier_specs = st.text_area(
+        "Supplier Specifications",
+        placeholder="LOD: NMT 3%...\nAssay: 98–102%...\nDissolution: NLT 70%...",
+        height=250
+    )
 
-    # ANALYSIS LOGIC
-    analyze_btn.click(compare_specs, inputs=[controlled_box, supplier_box], outputs=output)
+# Analyze Button
+st.markdown("---")
+if st.button("🔍 Analyze COA"):
+    if not controlled_specs.strip() or not supplier_specs.strip():
+        st.error("Please enter both Controlled and Supplier specifications.")
+    else:
+        with st.spinner("Analyzing with Gemini..."):
+            result = generate_comparison(controlled_specs, supplier_specs)
+        st.markdown("### 📄 COA Review Result")
+        st.markdown(result)
 
-
-if __name__ == "__main__":
-    demo.launch()
+# Footer
+st.markdown(
+    """
+    <hr>
+    <p style="text-align:center; font-size:13px; color:gray;">
+        © 2025 PharmAiOps | AI Tools for Pharmaceutical QC Automation
+    </p>
+    """,
+    unsafe_allow_html=True
+)
