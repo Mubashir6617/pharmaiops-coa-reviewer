@@ -66,6 +66,9 @@ USERS: Dict[str, str] = {
 }
 
 MODEL_OPTIONS = [
+    "gpt-5.1",
+    "gpt-5 mini",
+    "gpt-5 nano",
     "gpt-4o-mini",
     "gpt-4o",
     "gpt-4.1-mini",
@@ -232,10 +235,29 @@ def run_extractor(
 
     instructions = (
         f"{prompt_header} "
-        "Return a clean markdown table with columns `Parameter` and `Specification`. "
-        "Exclude system suitability, apparatus details, method RSD% limit, tailing factor, and method steps. "
-        "Provide short, paraphrased acceptance criteria only."
+        "You are a pharmaceutical monograph and COA interpretation expert operating at GPT-5.1 reasoning level. "
+        "Extract only the true analytical test parameters and their acceptance criteria from the document.\n\n"
+    
+        "Output Requirements:\n"
+        "- Return a clean, strict markdown table with columns: `Parameter` and `Specification`.\n"
+        "- Ensure each parameter corresponds to a real QC test (e.g., Description, Identification, Assay, Impurities, pH, LOD, Residue on Ignition, Specific Optical Rotation, etc.).\n"
+        "- For identification tests, summarize the acceptance criteria (e.g., 'Conforms', 'IR matches reference standard').\n"
+        "- For assays and impurities, include the exact numeric ranges or limits.\n"
+        "- For limit tests (e.g., Arsenic, Heavy metals), extract the exact NMT/NLT value.\n"
+        "- Shorten long textual acceptance criteria into concise, accurate phrases.\n\n"
+    
+        "Strict Exclusions:\n"
+        "- Do NOT include system suitability criteria (RSD, tailing, theoretical plates).\n"
+        "- Do NOT include chromatography conditions, mobile phases, detector parameters.\n"
+        "- Do NOT include apparatus details or sample preparation steps.\n"
+        "- Do NOT fabricate or infer any missing value.\n\n"
+    
+        "General Rules:\n"
+        "- Keep each `Parameter` name clean and standardised.\n"
+        "- Keep each `Specification` short, factual, and aligned with the document.\n"
+        "- If a parameter has multiple criteria, merge them into one concise specification.\n"
     )
+  
 
     truncated_text = text[:6000] if text else ""
 
@@ -362,13 +384,20 @@ def generate_risk_notes(
         return "No critical risks identified. Routine monitoring and periodic vendor requalification are recommended."
 
     prompt = (
-        "You are a pharmaceutical quality and GMP expert. "
-        "Based on the following COA review gaps, write concise, risk-based notes "
-        "covering: potential impact on product quality/patient safety, "
-        "regulatory risk, and recommended actions (e.g., request revised COA, "
-        "additional testing, change control, CAPA, or vendor requalification). "
-        "Write in short paragraphs, not bullets."
-    )
+        "You are an advanced pharmaceutical QA/QC and GMP compliance specialist with deep expertise in:\n"
+        "- ICH Q7, Q8, Q9, Q10\n"
+        "- WHO TRS, FDA 21 CFR Part 211, and PIC/S guidelines\n\n"
+        "Analyze the COA gaps provided below and generate **clear, concise, risk-based notes**.\n"
+        "Your analysis must reflect GPT-5.1 level reasoning: accurate, structured, and context-aware.\n\n"
+        "Include:\n"
+        "1. **Quality & safety impact:** How the gap could affect assay, impurities, stability, identification, or patient safety.\n"
+        "2. **Regulatory risk:** Compliance implications relative to pharmacopeial limits or GMP expectations.\n"
+        "3. **Recommended actions:** Practical, audit-ready steps such as repeat testing, requesting updated COA, investigation, CAPA, or vendor requalification.\n\n"
+        "Output style:\n"
+        "- Write in short, crisp bullets (without heading and in short, simple human english).\n"
+        "- Do not repeat the gap list; interpret it.\n"
+        "- Keep tone professional, objective, and aligned with pharmaceutical QA language.\n"
+       )
 
     response = client.chat.completions.create(
         model=model_name,
@@ -631,3 +660,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
