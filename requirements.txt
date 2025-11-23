@@ -1,6 +1,7 @@
 streamlit
-pypdf
-PyPDF2
-pandas
-openai>=1.0.0
-python-dotenv  # optional
+pdfplumber
+pytesseract
+Pillow
+python-dotenv
+openai
+reportlab
